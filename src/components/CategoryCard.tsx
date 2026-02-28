@@ -1,4 +1,4 @@
-import { ArrowRight, Palette, TrendingUp, Megaphone, CreditCard, Monitor, Wrench, BarChart3, Users } from "lucide-react";
+import { ArrowRight, BarChart3, CreditCard, Megaphone, Monitor, Palette, TrendingUp, Users, Wrench } from "lucide-react";
 
 const iconMap = {
   Palette, TrendingUp, Megaphone, CreditCard, Monitor, Wrench, BarChart3, Users,
@@ -9,13 +9,15 @@ interface CategoryCardProps {
   jobs: number;
   icon: keyof typeof iconMap;
   active?: boolean;
+  onClick?: () => void;
 }
 
-const CategoryCard = ({ name, jobs, icon, active }: CategoryCardProps) => {
+const CategoryCard = ({ name, jobs, icon, active, onClick }: CategoryCardProps) => {
   const Icon = iconMap[icon];
 
   return (
     <div
+      onClick={onClick}
       className={`group border border-border p-8 cursor-pointer transition-all
         ${active ? "bg-primary border-primary" : "bg-card hover:bg-primary hover:border-primary"}
       `}

@@ -2,27 +2,28 @@ import AdminLayout from "@/components/admin/AdminLayout";
 import { useApp } from "@/contexts/AppContext";
 import type { Job } from "@/data/jobs";
 import {
-    Briefcase,
-    Calendar,
-    ChevronRight,
-    Clock,
-    Edit2,
-    ExternalLink,
-    FileText,
-    MapPin,
-    MoreVertical,
-    Plus,
-    Trash2,
-    TrendingUp,
-    Users,
-    X
+  Briefcase,
+  Calendar,
+  ChevronRight,
+  Clock,
+  Edit2,
+  ExternalLink,
+  FileText,
+  MapPin,
+  MoreVertical,
+  Plus,
+  Trash2,
+  TrendingUp,
+  Users,
+  X
 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 
 const emptyJob: Omit<Job, "id"> = {
-  title: "", company: "", location: "", type: "Full Time", description: "",
-  labels: [], logoLetter: "", logoBg: "hsl(var(--bg-light))", logoColor: "hsl(var(--primary))",
+  title: "", company: "", location: "", category: "Design", type: "Full-Time", description: "",
+  salary: "", logoURL: "",
+  logoLetter: "", logoBg: "hsl(var(--bg-light))", logoColor: "hsl(var(--primary))",
 };
 
 const AdminDashboard = () => {
@@ -66,17 +67,32 @@ const AdminDashboard = () => {
     setCreating(true);
   };
 
-  const handleSave = (e: React.FormEvent) => {
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.title.trim() || !form.company.trim()) return;
-    const jobData = { ...form, logoLetter: form.logoLetter || form.company[0]?.toUpperCase() || "?" };
-    if (editing) {
-      updateJob(editing.id, jobData);
-    } else {
-      addJob(jobData);
+    const jobData = {
+      title: form.title,
+      company: form.company,
+      location: form.location,
+      category: form.category,
+      type: form.type,
+      description: form.description,
+      salary: form.salary,
+      logoURL: form.logoURL,
+    };
+    
+    try {
+      if (editing) {
+        await updateJob(editing.id, jobData);
+      } else {
+        await addJob(jobData);
+      }
+      setCreating(false);
+      setEditing(null);
+    } catch (error: any) {
+      console.error("Failed to save job", error);
+      alert(`Failed to save job: ${error.message}. Please check your connection or payload.`);
     }
-    setCreating(false);
-    setEditing(null);
   };
 
   const renderOverview = () => (
@@ -128,14 +144,20 @@ const AdminDashboard = () => {
                       </div>
                     </td>
                     <td className="px-6 py-4 hidden sm:table-cell">
-                      <div className="flex items-center gap-1.5 text-text-mid text-xs font-semibold">
-                        <MapPin className="w-3 h-3" /> {job.location}
+                      <div className="flex flex-col gap-1">
+                        <div className="flex items-center gap-1.5 text-text-mid text-xs font-semibold">
+                          <MapPin className="w-3 h-3" /> {job.location}
+                        </div>
+                        <div className="text-[10px] text-primary font-bold uppercase">{job.category}</div>
                       </div>
                     </td>
                     <td className="px-6 py-4 text-right">
-                      <span className="inline-block px-2 py-1 bg-primary/5 text-primary text-[10px] font-bold rounded uppercase tracking-wider border border-primary/10">
-                        {job.type}
-                      </span>
+                      <div className="flex flex-col items-end gap-1">
+                        <span className="inline-block px-2 py-1 bg-primary/5 text-primary text-[10px] font-bold rounded uppercase tracking-wider border border-primary/10">
+                          {job.type}
+                        </span>
+                        <span className="text-[10px] font-bold text-text-mid">{job.salary}</span>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -221,9 +243,11 @@ const AdminDashboard = () => {
                       <div className="flex items-center gap-1.5 text-text-mid text-xs font-semibold">
                         <MapPin className="w-3 h-3 text-text-light" /> {job.location}
                       </div>
-                      <div className="flex items-center gap-1.5 text-text-mid text-[10px] font-bold">
-                        <span className="w-1.5 h-1.5 rounded-full bg-primary/40"></span>
-                        <span className="uppercase tracking-tight text-primary">{job.type}</span>
+                      <div className="flex items-center gap-1.5">
+                        <span className="inline-block px-2 py-0.5 bg-qh-blue/5 text-qh-blue text-[10px] font-bold rounded uppercase border border-qh-blue/10">
+                          {job.category}
+                        </span>
+                        <span className="text-[10px] font-bold text-text-mid ml-2">{job.salary}</span>
                       </div>
                     </div>
                   </td>
@@ -237,7 +261,16 @@ const AdminDashboard = () => {
                       <button onClick={() => openEdit(job)} className="p-2 text-text-mid hover:text-primary hover:bg-primary/5 rounded-lg transition-all" title="Edit">
                         <Edit2 className="w-4 h-4" />
                       </button>
-                      <button onClick={() => deleteJob(job.id)} className="p-2 text-text-mid hover:text-destructive hover:bg-destructive/5 rounded-lg transition-all" title="Delete">
+                      <button onClick={async () => { 
+                        if(window.confirm("Are you sure you want to delete this job?")) {
+                          try {
+                            await deleteJob(job.id);
+                          } catch (error: any) {
+                            console.error("Failed to delete job", error);
+                            alert(`Failed to delete job: ${error.message}`);
+                          }
+                        }
+                      }} className="p-2 text-text-mid hover:text-destructive hover:bg-destructive/5 rounded-lg transition-all" title="Delete">
                         <Trash2 className="w-4 h-4" />
                       </button>
                       <button className="p-2 text-text-mid hover:text-foreground rounded-lg transition-all">
@@ -395,18 +428,48 @@ const AdminDashboard = () => {
                 </div>
               </div>
 
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-text-mid mb-2">Logo Letter & Styling</label>
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 rounded-xl bg-qh-black flex items-center justify-center text-white font-bold text-xl shadow-lg">
-                    {form.logoLetter || (form.company[0]?.toUpperCase() || "?")}
-                  </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-text-mid mb-2">Category</label>
+                  <select
+                    value={form.category}
+                    onChange={(e) => setForm((p) => ({ ...p, category: e.target.value }))}
+                    className="w-full border border-border bg-[#FBFBFE] px-4 py-3 rounded-xl text-foreground outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all font-body text-sm"
+                  >
+                    <option value="Design">Design</option>
+                    <option value="Development">Development</option>
+                    <option value="Marketing">Marketing</option>
+                    <option value="Business">Business</option>
+                    <option value="Technology">Technology</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-text-mid mb-2">Salary Range</label>
                   <input
-                    value={form.logoLetter}
-                    onChange={(e) => setForm((p) => ({ ...p, logoLetter: e.target.value }))}
-                    placeholder="Short initial (e.g. D)"
+                    value={form.salary}
+                    onChange={(e) => setForm((p) => ({ ...p, salary: e.target.value }))}
+                    placeholder="e.g. $140k - $180k"
+                    className="w-full border border-border bg-[#FBFBFE] px-4 py-3 rounded-xl text-foreground placeholder:text-text-light outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all font-body text-sm"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-text-mid mb-2">Logo URL</label>
+                <div className="flex items-center gap-4">
+                  {form.logoURL ? (
+                    <img src={form.logoURL} alt="Logo" className="w-12 h-12 rounded-xl object-cover border border-border" />
+                  ) : (
+                    <div className="w-12 h-12 rounded-xl bg-qh-black flex items-center justify-center text-white font-bold text-xl shadow-lg">
+                      {form.logoLetter || (form.company[0]?.toUpperCase() || "?")}
+                    </div>
+                  )}
+                  <input
+                    value={form.logoURL}
+                    onChange={(e) => setForm((p) => ({ ...p, logoURL: e.target.value }))}
+                    placeholder="https://example.com/logo.png"
                     className="flex-1 border border-border bg-[#FBFBFE] px-4 py-3 rounded-xl text-foreground placeholder:text-text-light outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all font-body text-sm"
-                    maxLength={2}
                   />
                 </div>
               </div>

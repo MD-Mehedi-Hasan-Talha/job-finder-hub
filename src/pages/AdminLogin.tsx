@@ -1,12 +1,12 @@
+import { useApp } from "@/contexts/AppContext";
+import { ArrowLeft, Briefcase } from "lucide-react";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useApp } from "@/contexts/AppContext";
-import { LogIn, Briefcase, Eye, EyeOff, ArrowLeft } from "lucide-react";
 
 const AdminLogin = () => {
   const { loginAdmin, isAdmin } = useApp();
   const navigate = useNavigate();
-  const [email, setEmail] = useState("");
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
@@ -22,15 +22,18 @@ const AdminLogin = () => {
     setError("");
     setIsLoading(true);
     
-    // Simulate a bit of loading for premium feel
-    setTimeout(() => {
-      if (loginAdmin(email, password)) {
+    try {
+      const success = await loginAdmin(username, password);
+      if (success) {
         navigate("/admin");
       } else {
-        setError("Invalid credentials. Use the demo account.");
-        setIsLoading(false);
+        setError("Invalid credentials. Please try again.");
       }
-    }, 800);
+    } catch (err: any) {
+      setError(err.message || "An error occurred during login.");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -62,12 +65,12 @@ const AdminLogin = () => {
 
           <form onSubmit={handleSubmit} className="space-y-5">
             <div>
-              <label className="block text-xs font-bold uppercase tracking-wider text-text-mid mb-2">Email Address</label>
+              <label className="block text-xs font-bold uppercase tracking-wider text-text-mid mb-2">Username</label>
               <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="admin@quickhire.com"
+                type="text"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                placeholder="admin"
                 className="w-full border border-border bg-background px-4 py-3 rounded-xl text-foreground placeholder:text-text-light outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all font-body"
                 required
               />
@@ -113,7 +116,7 @@ const AdminLogin = () => {
             <div className="bg-primary/5 p-4 rounded-xl">
               <p className="text-xs text-primary/80 font-semibold mb-1 uppercase tracking-tight">Demo Access</p>
               <p className="text-sm text-foreground/80">
-                <span className="font-bold">admin@quickhire.com</span> / <span className="font-bold">admin123</span>
+                <span className="font-bold">admin</span> / <span className="font-bold">password123</span>
               </p>
             </div>
             

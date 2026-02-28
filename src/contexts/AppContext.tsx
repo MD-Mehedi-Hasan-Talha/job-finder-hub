@@ -1,6 +1,6 @@
-import { createContext, useContext, useState, useCallback, type ReactNode } from "react";
-import { featuredJobs as defaultFeatured, latestJobs as defaultLatest } from "@/data/jobs";
 import type { Job, LatestJob } from "@/data/jobs";
+import { api } from "@/lib/api";
+import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
 
 export interface Application {
   id: number;
@@ -19,12 +19,13 @@ interface AppContextType {
   latest: LatestJob[];
   applications: Application[];
   isAdmin: boolean;
-  addJob: (job: Omit<Job, "id">) => void;
-  updateJob: (id: number, job: Partial<Job>) => void;
-  deleteJob: (id: number) => void;
-  submitApplication: (app: Omit<Application, "id" | "submittedAt">) => void;
-  loginAdmin: (email: string, password: string) => boolean;
+  addJob: (job: Omit<Job, "id">) => Promise<void>;
+  updateJob: (id: string, job: Partial<Job>) => Promise<void>;
+  deleteJob: (id: string) => Promise<void>;
+  submitApplication: (app: Omit<Application, "id" | "submittedAt">) => Promise<void>;
+  loginAdmin: (username: string, password: string) => Promise<boolean>;
   logoutAdmin: () => void;
+  refreshData: (filters?: { category?: string; location?: string }) => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType | null>(null);
@@ -35,48 +36,94 @@ export const useApp = () => {
   return ctx;
 };
 
-// Demo credentials — frontend-only, not secure
-const DEMO_EMAIL = "admin@quickhire.com";
-const DEMO_PASS = "admin123";
 
 export const AppProvider = ({ children }: { children: ReactNode }) => {
-  const [featured, setFeatured] = useState<Job[]>(defaultFeatured);
-  const [latest] = useState<LatestJob[]>(defaultLatest);
+  const [featured, setFeatured] = useState<Job[]>([]);
+  const [latest, setLatest] = useState<LatestJob[]>([]);
   const [applications, setApplications] = useState<Application[]>([]);
-  const [isAdmin, setIsAdmin] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(!!localStorage.getItem("adminToken"));
 
-  const addJob = useCallback((job: Omit<Job, "id">) => {
-    setFeatured((prev) => [...prev, { ...job, id: Date.now() }]);
+  const refreshData = useCallback(async (filters?: { category?: string; location?: string }) => {
+    try {
+      let endpoint = "/api/jobs";
+      const params = new URLSearchParams();
+      if (filters?.category) params.append("category", filters.category);
+      if (filters?.location) params.append("location", filters.location);
+      if (params.toString()) endpoint += `?${params.toString()}`;
+
+      const jobs = await api.get(endpoint);
+      const normalizedJobs = jobs.map((j: any) => ({
+        ...j,
+        id: j.id || j._id // Handle both id and _id (common in MongoDB)
+      }));
+      setFeatured(normalizedJobs);
+      setLatest(normalizedJobs.slice(0, 8));
+      
+      if (localStorage.getItem("adminToken")) {
+        // Fetch all applications
+        const allApps: Application[] = [];
+        for (const job of normalizedJobs) {
+          try {
+            const apps = await api.get(`/api/applications/${job.id}`);
+            allApps.push(...apps.map((a: any) => ({ ...a, id: a.id || a._id })));
+          } catch (e) {
+            console.error(`Failed to fetch apps for job ${job.id}`, e);
+          }
+        }
+        setApplications(allApps);
+      }
+    } catch (error) {
+      console.error("Failed to fetch data", error);
+    }
   }, []);
 
-  const updateJob = useCallback((id: number, updates: Partial<Job>) => {
-    setFeatured((prev) => prev.map((j) => (j.id === id ? { ...j, ...updates } : j)));
-  }, []);
+  useEffect(() => {
+    refreshData();
+  }, [refreshData, isAdmin]);
 
-  const deleteJob = useCallback((id: number) => {
-    setFeatured((prev) => prev.filter((j) => j.id !== id));
-  }, []);
+  const addJob = useCallback(async (job: Omit<Job, "id">) => {
+    await api.post("/api/jobs", job);
+    await refreshData();
+  }, [refreshData]);
 
-  const submitApplication = useCallback((app: Omit<Application, "id" | "submittedAt">) => {
-    setApplications((prev) => [
-      ...prev,
-      { ...app, id: Date.now(), submittedAt: new Date().toISOString() },
-    ]);
-  }, []);
+  const updateJob = useCallback(async (id: string, updates: Partial<Job>) => {
+    // Switching to PUT as it's the standard for updates
+    await api.put(`/api/jobs/${id}`, updates); 
+    await refreshData();
+  }, [refreshData]);
 
-  const loginAdmin = useCallback((email: string, password: string) => {
-    if (email === DEMO_EMAIL && password === DEMO_PASS) {
+  const deleteJob = useCallback(async (id: string) => {
+    await api.delete(`/api/jobs/${id}`);
+    await refreshData();
+  }, [refreshData]);
+
+  const submitApplication = useCallback(async (app: Omit<Application, "id" | "submittedAt">) => {
+    await api.post("/api/applications", app);
+    await refreshData();
+  }, [refreshData]);
+
+  const loginAdmin = useCallback(async (username: string, password: string) => {
+    try {
+      const data = await api.post("/api/auth/login", { username, password });
+      localStorage.setItem("adminToken", data.token);
+      localStorage.setItem("adminUsername", data.username);
       setIsAdmin(true);
       return true;
+    } catch (error) {
+      console.error("Login failed", error);
+      return false;
     }
-    return false;
   }, []);
 
-  const logoutAdmin = useCallback(() => setIsAdmin(false), []);
+  const logoutAdmin = useCallback(() => {
+    localStorage.removeItem("adminToken");
+    localStorage.removeItem("adminUsername");
+    setIsAdmin(false);
+  }, []);
 
   return (
     <AppContext.Provider
-      value={{ featured, latest, applications, isAdmin, addJob, updateJob, deleteJob, submitApplication, loginAdmin, logoutAdmin }}
+      value={{ featured, latest, applications, isAdmin, addJob, updateJob, deleteJob, submitApplication, loginAdmin, logoutAdmin, refreshData }}
     >
       {children}
     </AppContext.Provider>

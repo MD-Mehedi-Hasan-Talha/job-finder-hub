@@ -1,7 +1,7 @@
-import { useState } from "react";
-import { X } from "lucide-react";
 import { useApp } from "@/contexts/AppContext";
 import type { Job } from "@/data/jobs";
+import { X } from "lucide-react";
+import { useState } from "react";
 
 interface Props {
   job: Job;
@@ -27,15 +27,20 @@ const ApplyModal = ({ job, onClose }: Props) => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validate()) return;
-    setSubmitting(true);
-    submitApplication({
-      ...form,
-      jobId: job.id,
-      jobTitle: job.title,
-      company: job.company,
-    });
-    setSuccess(true);
-    setSubmitting(false);
+    try {
+      await submitApplication({
+        ...form,
+        jobId: job.id,
+        jobTitle: job.title,
+        company: job.company,
+      });
+      setSuccess(true);
+    } catch (error) {
+      console.error("Failed to submit application", error);
+      setErrors({ submit: "Failed to submit application. Please try again." });
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -83,6 +88,7 @@ const ApplyModal = ({ job, onClose }: Props) => {
                 className="w-full border border-border px-4 py-3 text-base font-body text-foreground placeholder:text-text-light outline-none focus:border-primary transition-colors resize-none"
               />
             </div>
+            {errors.submit && <p className="text-destructive text-sm">{errors.submit}</p>}
             <button
               type="submit"
               disabled={submitting}

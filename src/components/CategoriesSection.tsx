@@ -1,8 +1,12 @@
+import { categories } from "@/data/jobs";
 import { ArrowRight } from "lucide-react";
 import CategoryCard from "./CategoryCard";
-import { categories } from "@/data/jobs";
 
-const CategoriesSection = () => (
+interface Props {
+  onCategoryClick: (category: string) => void;
+}
+
+const CategoriesSection = ({ onCategoryClick }: Props) => (
   <section className="bg-card px-4 md:px-10 xl:px-[124px] pt-[72px]">
     <div className="flex items-end justify-between mb-12 flex-wrap gap-3">
       <h2 className="font-display font-semibold text-[32px] md:text-[48px] leading-[110%] text-foreground">
@@ -14,7 +18,7 @@ const CategoriesSection = () => (
     </div>
     <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 xl:gap-8">
       {categories.map((cat, i) => (
-        <CategoryCard key={cat.name} {...cat} active={i === 2} />
+        <CategoryCard key={cat.name} {...cat} active={i === 2} onClick={() => onCategoryClick(cat.name)} />
       ))}
     </div>
   </section>
