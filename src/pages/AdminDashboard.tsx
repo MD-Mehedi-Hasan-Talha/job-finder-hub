@@ -1,10 +1,24 @@
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import AdminLayout from "@/components/admin/AdminLayout";
 import { useApp } from "@/contexts/AppContext";
-import { LogOut, Plus, Trash2, Edit2, X, Briefcase, FileText } from "lucide-react";
 import type { Job } from "@/data/jobs";
-
-type Tab = "jobs" | "applications";
+import {
+    Briefcase,
+    Calendar,
+    ChevronRight,
+    Clock,
+    Edit2,
+    ExternalLink,
+    FileText,
+    MapPin,
+    MoreVertical,
+    Plus,
+    Trash2,
+    TrendingUp,
+    Users,
+    X
+} from "lucide-react";
+import { useMemo, useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 
 const emptyJob: Omit<Job, "id"> = {
   title: "", company: "", location: "", type: "Full Time", description: "",
@@ -12,9 +26,11 @@ const emptyJob: Omit<Job, "id"> = {
 };
 
 const AdminDashboard = () => {
-  const { featured, applications, isAdmin, logoutAdmin, addJob, updateJob, deleteJob } = useApp();
+  const { featured, applications, isAdmin, addJob, updateJob, deleteJob } = useApp();
   const navigate = useNavigate();
-  const [tab, setTab] = useState<Tab>("jobs");
+  const [searchParams] = useSearchParams();
+  const tab = searchParams.get("tab") || "overview";
+
   const [editing, setEditing] = useState<Job | null>(null);
   const [creating, setCreating] = useState(false);
   const [form, setForm] = useState(emptyJob);
@@ -23,6 +39,20 @@ const AdminDashboard = () => {
     navigate("/admin/login");
     return null;
   }
+
+  // Stats calculation
+  const stats = useMemo(() => {
+    const now = new Date();
+    const lastWeek = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const newApps = applications.filter(app => new Date(app.submittedAt) > lastWeek).length;
+    
+    return [
+      { label: "Total Jobs", value: featured.length, icon: Briefcase, color: "bg-primary/10 text-primary", trend: "+2 this month" },
+      { label: "Total Applications", value: applications.length, icon: FileText, color: "bg-qh-blue/10 text-qh-blue", trend: "+12% vs last month" },
+      { label: "New Applications", value: newApps, icon: Users, color: "bg-qh-green/10 text-qh-green", subtitle: "Last 7 days" },
+      { label: "Success Rate", value: "84%", icon: TrendingUp, color: "bg-qh-yellow/10 text-qh-yellow", trend: "+5% scale" },
+    ];
+  }, [featured.length, applications]);
 
   const openCreate = () => {
     setForm(emptyJob);
@@ -49,191 +79,370 @@ const AdminDashboard = () => {
     setEditing(null);
   };
 
-  const handleLogout = () => {
-    logoutAdmin();
-    navigate("/");
-  };
-
-  return (
-    <div className="min-h-screen bg-background">
-      {/* Header */}
-      <header className="flex items-center justify-between px-4 md:px-10 xl:px-[124px] h-[78px] bg-card border-b border-border">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 bg-primary rounded-full flex items-center justify-center">
-            <Briefcase className="w-4 h-4 text-primary-foreground" />
+  const renderOverview = () => (
+    <div className="space-y-8 animate-in fade-in duration-500">
+      {/* Stats Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        {stats.map((stat, i) => (
+          <div key={i} className="bg-white p-6 rounded-2xl border border-border/50 shadow-sm hover:shadow-md transition-shadow">
+            <div className="flex items-center justify-between mb-4">
+              <div className={`w-12 h-12 ${stat.color} rounded-xl flex items-center justify-center`}>
+                <stat.icon className="w-6 h-6" />
+              </div>
+              {stat.trend && (
+                <span className="text-[10px] font-bold text-qh-green bg-qh-green/10 px-2 py-1 rounded-full">{stat.trend}</span>
+              )}
+            </div>
+            <div>
+              <p className="text-text-light text-sm font-semibold mb-1">{stat.label}</p>
+              <h3 className="text-3xl font-display font-bold text-foreground">{stat.value}</h3>
+              {stat.subtitle && <p className="text-[11px] text-text-light mt-1">{stat.subtitle}</p>}
+            </div>
           </div>
-          <span className="font-display font-bold text-xl text-foreground">QuickHire Admin</span>
-        </div>
-        <button onClick={handleLogout} className="flex items-center gap-2 text-text-mid hover:text-destructive font-semibold text-sm transition-colors">
-          <LogOut className="w-4 h-4" /> Logout
-        </button>
-      </header>
+        ))}
+      </div>
 
-      <div className="px-4 md:px-10 xl:px-[124px] py-8">
-        {/* Tabs */}
-        <div className="flex gap-0 border-b border-border mb-8">
-          {([["jobs", "Jobs", Briefcase], ["applications", "Applications", FileText]] as const).map(([key, label, Icon]) => (
-            <button
-              key={key}
-              onClick={() => setTab(key as Tab)}
-              className={`flex items-center gap-2 px-6 py-3 font-semibold text-sm border-b-2 transition-colors -mb-px ${
-                tab === key ? "border-primary text-primary" : "border-transparent text-text-mid hover:text-foreground"
-              }`}
-            >
-              <Icon className="w-4 h-4" /> {label}
-              <span className="ml-1 text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full font-bold">
-                {key === "jobs" ? featured.length : applications.length}
-              </span>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        {/* Recent Jobs */}
+        <div className="lg:col-span-2 bg-white rounded-2xl border border-border/50 shadow-sm overflow-hidden flex flex-col">
+          <div className="p-6 border-b border-border/50 flex items-center justify-between">
+            <h3 className="font-display font-bold text-lg text-foreground">Recently Posted Jobs</h3>
+            <button onClick={() => navigate("/admin?tab=jobs")} className="text-primary text-sm font-bold hover:underline flex items-center gap-1">
+              View all <ChevronRight className="w-4 h-4" />
             </button>
-          ))}
+          </div>
+          <div className="flex-1 overflow-x-auto">
+            <table className="w-full">
+              <tbody className="divide-y divide-border/30">
+                {featured.slice(0, 5).map((job) => (
+                  <tr key={job.id} className="hover:bg-bg-light/50 transition-colors group">
+                    <td className="px-6 py-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-lg bg-qh-black flex items-center justify-center text-white font-bold text-sm">
+                          {job.logoLetter}
+                        </div>
+                        <div>
+                          <p className="font-bold text-foreground text-sm leading-tight">{job.title}</p>
+                          <p className="text-xs text-text-light mt-0.5">{job.company}</p>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 hidden sm:table-cell">
+                      <div className="flex items-center gap-1.5 text-text-mid text-xs font-semibold">
+                        <MapPin className="w-3 h-3" /> {job.location}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 text-right">
+                      <span className="inline-block px-2 py-1 bg-primary/5 text-primary text-[10px] font-bold rounded uppercase tracking-wider border border-primary/10">
+                        {job.type}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+                {featured.length === 0 && (
+                  <tr><td className="px-6 py-10 text-center text-text-light text-sm italic">No jobs posted yet.</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
 
-        {/* Jobs Tab */}
-        {tab === "jobs" && (
-          <>
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="font-display font-semibold text-2xl text-foreground">Manage Jobs</h2>
-              <button onClick={openCreate} className="flex items-center gap-2 bg-primary text-primary-foreground font-bold text-sm px-5 py-2.5 border-none">
-                <Plus className="w-4 h-4" /> Add Job
-              </button>
-            </div>
-
-            <div className="border border-border overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="bg-background">
-                      <th className="text-left px-4 py-3 font-semibold text-text-mid">Title</th>
-                      <th className="text-left px-4 py-3 font-semibold text-text-mid">Company</th>
-                      <th className="text-left px-4 py-3 font-semibold text-text-mid hidden md:table-cell">Location</th>
-                      <th className="text-left px-4 py-3 font-semibold text-text-mid hidden lg:table-cell">Type</th>
-                      <th className="text-right px-4 py-3 font-semibold text-text-mid">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {featured.map((job) => (
-                      <tr key={job.id} className="border-t border-border hover:bg-background/60 transition-colors">
-                        <td className="px-4 py-3 font-semibold text-foreground">{job.title}</td>
-                        <td className="px-4 py-3 text-text-mid">{job.company}</td>
-                        <td className="px-4 py-3 text-text-mid hidden md:table-cell">{job.location}</td>
-                        <td className="px-4 py-3 hidden lg:table-cell">
-                          <span className="border border-primary text-primary text-xs font-semibold px-2 py-0.5">{job.type}</span>
-                        </td>
-                        <td className="px-4 py-3 text-right">
-                          <div className="flex items-center justify-end gap-2">
-                            <button onClick={() => openEdit(job)} className="p-1.5 text-text-mid hover:text-primary transition-colors" title="Edit">
-                              <Edit2 className="w-4 h-4" />
-                            </button>
-                            <button onClick={() => deleteJob(job.id)} className="p-1.5 text-text-mid hover:text-destructive transition-colors" title="Delete">
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                    {featured.length === 0 && (
-                      <tr><td colSpan={5} className="text-center py-12 text-text-light">No jobs yet. Click "Add Job" to create one.</td></tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </>
-        )}
-
-        {/* Applications Tab */}
-        {tab === "applications" && (
-          <>
-            <h2 className="font-display font-semibold text-2xl text-foreground mb-6">Applications</h2>
-            {applications.length === 0 ? (
-              <div className="border border-border p-12 text-center text-text-light">
-                No applications yet. Users can apply from the homepage.
-              </div>
-            ) : (
-              <div className="border border-border overflow-hidden">
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="bg-background">
-                        <th className="text-left px-4 py-3 font-semibold text-text-mid">Applicant</th>
-                        <th className="text-left px-4 py-3 font-semibold text-text-mid">Email</th>
-                        <th className="text-left px-4 py-3 font-semibold text-text-mid hidden md:table-cell">Job</th>
-                        <th className="text-left px-4 py-3 font-semibold text-text-mid hidden lg:table-cell">Company</th>
-                        <th className="text-left px-4 py-3 font-semibold text-text-mid hidden lg:table-cell">Resume</th>
-                        <th className="text-left px-4 py-3 font-semibold text-text-mid hidden xl:table-cell">Date</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {applications.map((app) => (
-                        <tr key={app.id} className="border-t border-border hover:bg-background/60 transition-colors">
-                          <td className="px-4 py-3 font-semibold text-foreground">{app.name}</td>
-                          <td className="px-4 py-3 text-text-mid">{app.email}</td>
-                          <td className="px-4 py-3 text-text-mid hidden md:table-cell">{app.jobTitle}</td>
-                          <td className="px-4 py-3 text-text-mid hidden lg:table-cell">{app.company}</td>
-                          <td className="px-4 py-3 hidden lg:table-cell">
-                            <a href={app.resumeLink} target="_blank" rel="noreferrer" className="text-primary hover:underline text-xs font-semibold">View</a>
-                          </td>
-                          <td className="px-4 py-3 text-text-light text-xs hidden xl:table-cell">
-                            {new Date(app.submittedAt).toLocaleDateString()}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+        {/* Recent Applications */}
+        <div className="bg-white rounded-2xl border border-border/50 shadow-sm overflow-hidden flex flex-col">
+          <div className="p-6 border-b border-border/50 flex items-center justify-between">
+            <h3 className="font-display font-bold text-lg text-foreground">Recent Apps</h3>
+            <button onClick={() => navigate("/admin?tab=applications")} className="text-primary text-sm font-bold hover:underline">
+              View all
+            </button>
+          </div>
+          <div className="p-4 space-y-4">
+            {applications.slice(0, 4).map((app) => (
+              <div key={app.id} className="flex gap-3 p-3 rounded-xl hover:bg-bg-light transition-colors group">
+                <div className="w-10 h-10 rounded-full bg-qh-blue/10 flex items-center justify-center text-qh-blue font-bold text-xs shrink-0 uppercase">
+                  {app.name.substring(0, 2)}
+                </div>
+                <div className="min-w-0 pr-2">
+                  <p className="font-bold text-foreground text-sm truncate">{app.name}</p>
+                  <p className="text-[11px] text-text-light truncate mt-0.5">applied for <span className="text-primary font-semibold">{app.jobTitle}</span></p>
+                </div>
+                <div className="ml-auto flex items-center">
+                   <p className="text-[10px] text-text-light font-medium">{new Date(app.submittedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}</p>
                 </div>
               </div>
+            ))}
+            {applications.length === 0 && (
+              <div className="py-10 text-center text-text-light text-sm italic">No applications yet.</div>
             )}
-          </>
-        )}
+          </div>
+        </div>
       </div>
+    </div>
+  );
+
+  const renderJobs = () => (
+    <div className="space-y-6 animate-in fade-in duration-500">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="font-display font-bold text-2xl text-foreground">Manage Jobs</h2>
+          <p className="text-text-mid text-sm mt-1">Add, edit, or remove job listings from the platform.</p>
+        </div>
+        <button onClick={openCreate} className="flex items-center gap-2 bg-primary hover:bg-primary/95 text-primary-foreground font-bold text-sm px-6 py-3 rounded-xl shadow-lg shadow-primary/20 transition-all active:scale-95">
+          <Plus className="w-4 h-4" /> Add New Job
+        </button>
+      </div>
+
+      <div className="bg-white rounded-2xl border border-border/50 shadow-sm overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left">
+            <thead>
+              <tr className="bg-bg-light/40">
+                <th className="px-6 py-4 text-[11px] font-bold text-text-mid uppercase tracking-wider">Job Information</th>
+                <th className="px-6 py-4 text-[11px] font-bold text-text-mid uppercase tracking-wider hidden md:table-cell">Details</th>
+                <th className="px-6 py-4 text-[11px] font-bold text-text-mid uppercase tracking-wider hidden lg:table-cell">Posting Date</th>
+                <th className="px-6 py-4 text-right text-[11px] font-bold text-text-mid uppercase tracking-wider">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border/30">
+              {featured.map((job) => (
+                <tr key={job.id} className="hover:bg-bg-light/20 transition-colors">
+                  <td className="px-6 py-5">
+                    <div className="flex items-center gap-4">
+                      <div className="w-12 h-12 rounded-xl bg-qh-black flex items-center justify-center text-white font-bold text-base shadow-sm">
+                        {job.logoLetter}
+                      </div>
+                      <div>
+                        <p className="font-bold text-foreground text-sm uppercase">{job.title}</p>
+                        <p className="text-xs text-text-light font-medium mt-0.5">{job.company}</p>
+                      </div>
+                    </div>
+                  </td>
+                  <td className="px-6 py-5 hidden md:table-cell">
+                    <div className="space-y-1.5">
+                      <div className="flex items-center gap-1.5 text-text-mid text-xs font-semibold">
+                        <MapPin className="w-3 h-3 text-text-light" /> {job.location}
+                      </div>
+                      <div className="flex items-center gap-1.5 text-text-mid text-[10px] font-bold">
+                        <span className="w-1.5 h-1.5 rounded-full bg-primary/40"></span>
+                        <span className="uppercase tracking-tight text-primary">{job.type}</span>
+                      </div>
+                    </div>
+                  </td>
+                  <td className="px-6 py-5 hidden lg:table-cell">
+                    <div className="flex items-center gap-1.5 text-text-light text-xs">
+                      <Calendar className="w-3.5 h-3.5" /> 24 July, 2024
+                    </div>
+                  </td>
+                  <td className="px-6 py-5 text-right">
+                    <div className="flex items-center justify-end gap-1">
+                      <button onClick={() => openEdit(job)} className="p-2 text-text-mid hover:text-primary hover:bg-primary/5 rounded-lg transition-all" title="Edit">
+                        <Edit2 className="w-4 h-4" />
+                      </button>
+                      <button onClick={() => deleteJob(job.id)} className="p-2 text-text-mid hover:text-destructive hover:bg-destructive/5 rounded-lg transition-all" title="Delete">
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                      <button className="p-2 text-text-mid hover:text-foreground rounded-lg transition-all">
+                        <MoreVertical className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+              {featured.length === 0 && (
+                <tr><td colSpan={4} className="text-center py-20 text-text-light italic">No job listings found. Start by adding one.</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+
+  const renderApplications = () => (
+    <div className="space-y-6 animate-in fade-in duration-500">
+      <div>
+        <h2 className="font-display font-bold text-2xl text-foreground">Applications</h2>
+        <p className="text-text-mid text-sm mt-1">Review and manage candidate applications for your job posts.</p>
+      </div>
+
+      <div className="bg-white rounded-2xl border border-border/50 shadow-sm overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left">
+            <thead>
+              <tr className="bg-bg-light/40">
+                <th className="px-6 py-4 text-[11px] font-bold text-text-mid uppercase tracking-wider">Candidate</th>
+                <th className="px-6 py-4 text-[11px] font-bold text-text-mid uppercase tracking-wider">Job Applied</th>
+                <th className="px-6 py-4 text-[11px] font-bold text-text-mid uppercase tracking-wider hidden lg:table-cell">Resume/Link</th>
+                <th className="px-6 py-4 text-right text-[11px] font-bold text-text-mid uppercase tracking-wider">Status</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border/30">
+              {applications.map((app) => (
+                <tr key={app.id} className="hover:bg-bg-light/20 transition-colors">
+                  <td className="px-6 py-5">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full bg-qh-blue/5 flex items-center justify-center text-qh-blue font-bold text-xs uppercase border border-qh-blue/10">
+                        {app.name.substring(0, 2)}
+                      </div>
+                      <div>
+                        <p className="font-bold text-foreground text-sm">{app.name}</p>
+                        <p className="text-xs text-text-light mt-0.5">{app.email}</p>
+                      </div>
+                    </div>
+                  </td>
+                  <td className="px-6 py-5">
+                    <div>
+                      <p className="font-bold text-foreground text-[13px] leading-tight">{app.jobTitle}</p>
+                      <p className="text-[11px] text-text-light font-medium mt-1 uppercase tracking-tight">{app.company}</p>
+                    </div>
+                  </td>
+                  <td className="px-6 py-5 hidden lg:table-cell">
+                    <a 
+                      href={app.resumeLink} 
+                      target="_blank" 
+                      rel="noreferrer" 
+                      className="inline-flex items-center gap-1.5 text-primary hover:underline text-xs font-bold bg-primary/5 px-3 py-1.5 rounded-lg border border-primary/10 transition-colors"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5" /> View Resume
+                    </a>
+                  </td>
+                  <td className="px-6 py-5 text-right">
+                    <span className="inline-block px-2.5 py-1 bg-qh-yellow/10 text-qh-yellow text-[10px] font-bold rounded-full uppercase tracking-wider border border-qh-yellow/10">
+                      Pending
+                    </span>
+                  </td>
+                </tr>
+              ))}
+              {applications.length === 0 && (
+                <tr><td colSpan={4} className="text-center py-20 text-text-light italic">No applications received yet.</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+
+  return (
+    <AdminLayout>
+      {tab === "overview" && renderOverview()}
+      {tab === "jobs" && renderJobs()}
+      {tab === "applications" && renderApplications()}
 
       {/* Create/Edit Modal */}
       {creating && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-qh-black/50 p-4" onClick={() => setCreating(false)}>
-          <div className="bg-card w-full max-w-lg p-8 relative max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-            <button onClick={() => setCreating(false)} className="absolute top-4 right-4 text-text-light hover:text-foreground">
-              <X className="w-5 h-5" />
-            </button>
-            <h3 className="font-display font-semibold text-2xl text-foreground mb-6">
-              {editing ? "Edit Job" : "Add New Job"}
-            </h3>
-            <form onSubmit={handleSave} className="flex flex-col gap-4">
-              {([
-                { key: "title", label: "Job Title", placeholder: "e.g. Brand Designer" },
-                { key: "company", label: "Company", placeholder: "e.g. Dropbox" },
-                { key: "location", label: "Location", placeholder: "e.g. San Francisco, US" },
-                { key: "type", label: "Type", placeholder: "e.g. Full Time" },
-                { key: "logoLetter", label: "Logo Letter(s)", placeholder: "e.g. D" },
-              ] as const).map((f) => (
-                <div key={f.key}>
-                  <label className="block text-sm font-semibold text-foreground mb-1.5">{f.label}</label>
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-qh-black/60 backdrop-blur-sm animate-in fade-in" onClick={() => setCreating(false)}>
+          <div className="bg-white w-full max-w-xl rounded-2xl shadow-2xl p-0 relative max-h-[90vh] overflow-hidden flex flex-col animate-in zoom-in-95 duration-200" onClick={(e) => e.stopPropagation()}>
+            <div className="p-6 border-b border-border/50 flex items-center justify-between">
+              <div>
+                <h3 className="font-display font-bold text-2xl text-foreground">
+                  {editing ? "Edit Job Listing" : "Create New Job"}
+                </h3>
+                <p className="text-text-mid text-sm mt-1">Fill in the details for the job position.</p>
+              </div>
+              <button onClick={() => setCreating(false)} className="p-2 text-text-light hover:text-foreground hover:bg-bg-light rounded-xl transition-all">
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+            
+            <form onSubmit={handleSave} className="flex-1 overflow-y-auto p-8 space-y-5 custom-scrollbar">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-text-mid mb-2">Job Title</label>
                   <input
-                    value={(form as any)[f.key]}
-                    onChange={(e) => setForm((p) => ({ ...p, [f.key]: e.target.value }))}
-                    placeholder={f.placeholder}
-                    className="w-full border border-border px-4 py-3 text-base font-body text-foreground placeholder:text-text-light outline-none focus:border-primary transition-colors bg-card"
-                    required={f.key === "title" || f.key === "company"}
+                    value={form.title}
+                    onChange={(e) => setForm((p) => ({ ...p, title: e.target.value }))}
+                    placeholder="e.g. Senior Brand Designer"
+                    className="w-full border border-border bg-[#FBFBFE] px-4 py-3 rounded-xl text-foreground placeholder:text-text-light outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all font-body text-sm"
+                    required
                   />
                 </div>
-              ))}
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-text-mid mb-2">Company Name</label>
+                  <input
+                    value={form.company}
+                    onChange={(e) => setForm((p) => ({ ...p, company: e.target.value }))}
+                    placeholder="e.g. Dropbox Inc."
+                    className="w-full border border-border bg-[#FBFBFE] px-4 py-3 rounded-xl text-foreground placeholder:text-text-light outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all font-body text-sm"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-text-mid mb-2">Location</label>
+                  <div className="relative">
+                    <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-text-light" />
+                    <input
+                      value={form.location}
+                      onChange={(e) => setForm((p) => ({ ...p, location: e.target.value }))}
+                      placeholder="e.g. San Francisco, US"
+                      className="w-full border border-border bg-[#FBFBFE] pl-11 pr-4 py-3 rounded-xl text-foreground placeholder:text-text-light outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all font-body text-sm"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-text-mid mb-2">Job Type</label>
+                  <div className="relative">
+                    <Clock className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-text-light" />
+                    <input
+                      value={form.type}
+                      onChange={(e) => setForm((p) => ({ ...p, type: e.target.value }))}
+                      placeholder="e.g. Full Time"
+                      className="w-full border border-border bg-[#FBFBFE] pl-11 pr-4 py-3 rounded-xl text-foreground placeholder:text-text-light outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all font-body text-sm"
+                    />
+                  </div>
+                </div>
+              </div>
+
               <div>
-                <label className="block text-sm font-semibold text-foreground mb-1.5">Description</label>
+                <label className="block text-xs font-bold uppercase tracking-wider text-text-mid mb-2">Logo Letter & Styling</label>
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-xl bg-qh-black flex items-center justify-center text-white font-bold text-xl shadow-lg">
+                    {form.logoLetter || (form.company[0]?.toUpperCase() || "?")}
+                  </div>
+                  <input
+                    value={form.logoLetter}
+                    onChange={(e) => setForm((p) => ({ ...p, logoLetter: e.target.value }))}
+                    placeholder="Short initial (e.g. D)"
+                    className="flex-1 border border-border bg-[#FBFBFE] px-4 py-3 rounded-xl text-foreground placeholder:text-text-light outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all font-body text-sm"
+                    maxLength={2}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold uppercase tracking-wider text-text-mid mb-2">Detailed Description</label>
                 <textarea
                   value={form.description}
                   onChange={(e) => setForm((p) => ({ ...p, description: e.target.value }))}
-                  placeholder="Job description..."
-                  rows={3}
-                  className="w-full border border-border px-4 py-3 text-base font-body text-foreground placeholder:text-text-light outline-none focus:border-primary transition-colors resize-none bg-card"
+                  placeholder="Describe the role, responsibilities, and requirements..."
+                  rows={4}
+                  className="w-full border border-border bg-[#FBFBFE] px-4 py-3 rounded-xl text-foreground placeholder:text-text-light outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all font-body text-sm resize-none"
                 />
               </div>
-              <button type="submit" className="bg-primary text-primary-foreground font-bold text-base py-3.5 border-none mt-2">
-                {editing ? "Save Changes" : "Create Job"}
-              </button>
             </form>
+
+            <div className="p-6 border-t border-border/50 bg-[#FBFBFE] flex items-center justify-end gap-3 rounded-b-2xl">
+              <button 
+                type="button" 
+                onClick={() => setCreating(false)}
+                className="px-6 py-3 text-text-mid hover:text-foreground font-bold text-sm transition-colors"
+              >
+                Cancel
+              </button>
+              <button 
+                type="button"
+                onClick={handleSave}
+                className="bg-primary hover:bg-primary/95 text-primary-foreground font-bold text-sm px-8 py-3 rounded-xl shadow-lg shadow-primary/20 transition-all active:scale-95"
+              >
+                {editing ? "Update Listing" : "Publish Job"}
+              </button>
+            </div>
           </div>
         </div>
       )}
-    </div>
+    </AdminLayout>
   );
 };
 
