@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { X } from "lucide-react";
+import { useApp } from "@/contexts/AppContext";
 import type { Job } from "@/data/jobs";
 
 interface Props {
@@ -8,6 +9,7 @@ interface Props {
 }
 
 const ApplyModal = ({ job, onClose }: Props) => {
+  const { submitApplication } = useApp();
   const [form, setForm] = useState({ name: "", email: "", resumeLink: "", coverNote: "" });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
@@ -26,19 +28,14 @@ const ApplyModal = ({ job, onClose }: Props) => {
     e.preventDefault();
     if (!validate()) return;
     setSubmitting(true);
-    try {
-      await fetch("/api/applications", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...form, jobId: job.id }),
-      });
-      setSuccess(true);
-    } catch {
-      // Mock success for demo
-      setSuccess(true);
-    } finally {
-      setSubmitting(false);
-    }
+    submitApplication({
+      ...form,
+      jobId: job.id,
+      jobTitle: job.title,
+      company: job.company,
+    });
+    setSuccess(true);
+    setSubmitting(false);
   };
 
   return (
